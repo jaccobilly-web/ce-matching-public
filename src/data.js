@@ -97,8 +97,20 @@ export function parseSheetCSV(csvText) {
   if (lines.length < 2) return null;
 
   const headers = parseCSVLine(lines[0]);
-  const ideaColumns = headers.slice(1).map(h => h.trim());
+  const rawColumns = headers.slice(1).map(h => h.trim());
 
+  // Build a mapping from sheet column index to our canonical IDEA_NAMES index
+  // This handles the sheet columns being in any order or having slight name variations
+  const normalise = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const canonicalNormed = IDEA_NAMES.map(n => normalise(n));
+
+  const colMapping = rawColumns.map(raw => {
+    const normed = normalise(raw);
+    const idx = canonicalNormed.indexOf(normed);
+    return idx; // -1 if not found
+  });
+
+  // Use canonical IDEA_NAMES order for all output
   const ratings = {};
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCSVLine(lines[i]);
@@ -106,19 +118,26 @@ export function parseSheetCSV(csvText) {
     if (!name) continue;
     // Normalize names: strip parenthetical suffixes like "(own org)"
     name = name.replace(/\s*\(.*?\)\s*$/, "").trim();
-    const values = cols.slice(1).map(v => {
+    const rawValues = cols.slice(1).map(v => {
       const n = parseInt(v, 10);
       return isNaN(n) ? 0 : n;
     });
-    ratings[name] = values;
+    // Reorder values to match canonical IDEA_NAMES order
+    const reordered = IDEA_NAMES.map((_, canonIdx) => {
+      const sheetCol = colMapping.indexOf(canonIdx);
+      return sheetCol >= 0 ? (rawValues[sheetCol] ?? 0) : 0;
+    });
+    ratings[name] = reordered;
   }
 
-  return { ideaColumns, ratings };
+  return { ideaColumns: IDEA_NAMES, ratings };
 }
 
 export async function fetchSheetData() {
   try {
-    const resp = await fetch(SHEET_CSV_URL);
+    // Cache-bust to avoid stale Google Sheets responses
+    const url = SHEET_CSV_URL + "&_t=" + Date.now();
+    const resp = await fetch(url, { cache: "no-store" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const text = await resp.text();
     const parsed = parseSheetCSV(text);

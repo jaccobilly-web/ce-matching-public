@@ -595,6 +595,41 @@ export default function App() {
     })();
   }, [myName]);
 
+  // When tier bounds or ratings change, redistribute items to correct tiers
+  useEffect(() => {
+    if (loading || !cfTiers || cofounders.length === 0) return;
+    setCfTiers(prev => {
+      const allIds = [...(prev.tier1 || []), ...(prev.tier2 || []), ...(prev.tier3 || [])];
+      const next = { tier1: [], tier2: [], tier3: [] };
+      allIds.forEach(id => {
+        const rating = cfRatings[id] ?? cofounders.find(c => c.id === id)?.rating ?? 4;
+        next[tierForRating(rating, cfBounds)].push(id);
+      });
+      const cfMap = Object.fromEntries(cofounders.map(c => [c.id, c]));
+      for (const key of Object.keys(next)) {
+        next[key] = sortTierByRatings(next[key], cfRatings, cfMap);
+      }
+      return next;
+    });
+  }, [cfBounds, cfRatings]);
+
+  useEffect(() => {
+    if (loading || !ideaTiers || ideas.length === 0) return;
+    setIdeaTiers(prev => {
+      const allIds = [...(prev.tier1 || []), ...(prev.tier2 || []), ...(prev.tier3 || [])];
+      const next = { tier1: [], tier2: [], tier3: [] };
+      allIds.forEach(id => {
+        const rating = ideaRatings[id] ?? ideas.find(i => i.id === id)?.rating ?? 4;
+        next[tierForRating(rating, ideaBounds)].push(id);
+      });
+      const ideaMap = Object.fromEntries(ideas.map(i => [i.id, i]));
+      for (const key of Object.keys(next)) {
+        next[key] = sortTierByRatings(next[key], ideaRatings, ideaMap);
+      }
+      return next;
+    });
+  }, [ideaBounds, ideaRatings]);
+
   useEffect(() => {
     if (loading || !myName || !cfTiers || !ideaTiers) return;
     setSaveStatus("saving");
