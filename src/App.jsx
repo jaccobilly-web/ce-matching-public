@@ -393,13 +393,13 @@ function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ide
     <div>
       {/* View mode toggle */}
       <div className="flex gap-1 mb-4">
-        <button onClick={() => setViewMode("cofounders")}
-          className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${viewMode === "cofounders" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-          Matches by co-founder
-        </button>
         <button onClick={() => setViewMode("ideas")}
           className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${viewMode === "ideas" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
           Matches by idea
+        </button>
+        <button onClick={() => setViewMode("cofounders")}
+          className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${viewMode === "cofounders" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+          Matches by co-founder
         </button>
       </div>
 
