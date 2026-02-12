@@ -180,7 +180,8 @@ function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, b
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-slate-700 mb-2">{label}</h2>
+      <h2 className="text-lg font-semibold text-slate-700 mb-1">{label}</h2>
+      <p className="text-xs text-slate-400 mb-3">Click the numbers to change ratings. Items move between tiers automatically.</p>
       <TierSettings bounds={bounds} setBounds={setBounds} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {["tier1", "tier2", "tier3"].map(tierId => {
@@ -196,7 +197,7 @@ function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, b
                 <span className={`text-xs ${cfg.headerText} opacity-75 ml-2`}>({items.length}) [{rangeLabel(tierId)}]</span>
               </div>
               <div className="p-2 space-y-1">
-                {items.length === 0 && <p className="text-xs text-slate-400 italic text-center py-4">Drop items here</p>}
+                {items.length === 0 && <p className="text-xs text-slate-400 italic text-center py-4">No items in this tier</p>}
                 {items.map(id => {
                   const item = itemMap[id];
                   if (!item) return null;
@@ -374,7 +375,7 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
 }
 
 function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds }) {
-  const [viewMode, setViewMode] = useState("cofounders");
+  const [viewMode, setViewMode] = useState("ideas");
   const [sortBy, setSortBy] = useState("tier");
   const [filterTier, setFilterTier] = useState("all");
   const analysisData = computeAnalysis(myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders);
