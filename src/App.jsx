@@ -256,7 +256,7 @@ const LOCKED_IDEAS = {
   "Safe Start": { person: "Elisa", note: "Elisa is founding this idea. She is the only co-founder match." },
 };
 
-function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas }) {
+function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds }) {
   const [filterMyRating, setFilterMyRating] = useState("5");
 
   const myRatings = {};
@@ -268,13 +268,14 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
   const tierBg = (t) => t === 1 ? "bg-emerald-100 text-emerald-800" : t === 2 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
   const ratingBg = (r) => r >= 6 ? "bg-emerald-100 text-emerald-800" : r >= 4 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
 
+  const t1IdeaMin = ideaBounds?.tier1Min ?? 6;
+
   const ideaData = ideaColumns.map((idea, ideaIdx) => {
     const myRating = myRatings[idea];
     const locked = LOCKED_IDEAS[idea];
 
     let matches;
     if (locked) {
-      // Only show the locked person
       const cf = cofounders.find(c => c.name === locked.person);
       if (cf) {
         const theirRating = allRatings[cf.name]?.[ideaIdx] ?? 0;
@@ -299,7 +300,9 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
       .sort((a, b) => b.cfRating - a.cfRating || b.theirRating - a.theirRating);
     }
 
-    return { idea, myRating, matches, locked };
+    const perfectMatches = locked ? [] : matches.filter(m => m.cfTier === 1 && m.theirRating >= t1IdeaMin);
+
+    return { idea, myRating, matches, locked, perfectMatches };
   })
   .filter(d => d.myRating >= parseInt(filterMyRating))
   .sort((a, b) => b.myRating - a.myRating);
@@ -317,12 +320,23 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
       </div>
 
       <div className="space-y-4">
-        {ideaData.map(({ idea, myRating, matches, locked }) => (
+        {ideaData.map(({ idea, myRating, matches, locked, perfectMatches }) => (
           <div key={idea} className="border border-slate-200 rounded-lg overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100">
-              <span className="font-semibold text-slate-800">{idea}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${ratingBg(myRating)}`}>Your rating: {myRating}/7</span>
-              {!locked && <span className="text-xs text-slate-400 ml-auto">{matches.length} potential match{matches.length !== 1 ? "es" : ""}</span>}
+            <div className="px-4 py-3 bg-white border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-slate-800 text-lg">{idea}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${ratingBg(myRating)}`}>Your rating: {myRating}/7</span>
+              </div>
+              {!locked && (
+                <div className="flex items-center gap-4 mt-1.5">
+                  <span className="text-sm font-semibold text-slate-600">{matches.length} potential co-founder match{matches.length !== 1 ? "es" : ""}</span>
+                  {perfectMatches.length > 0 && (
+                    <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md">
+                      {perfectMatches.length} perfect match{perfectMatches.length !== 1 ? "es" : ""}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="px-4 py-3">
               {locked && (
@@ -332,16 +346,20 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
                 <p className="text-sm text-slate-400 italic">No T1/T2 co-founders rate this 4+ or above</p>
               ) : (
                 <div className="space-y-1.5">
-                  {matches.map(m => (
-                    <div key={m.id} className="flex items-center gap-2 text-sm">
-                      <span className="font-medium text-slate-700 w-28">{m.name}</span>
-                      <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${tierBg(m.cfTier)}`}>{m.cfRating}</span>
-                      <span className="text-xs text-slate-400">your cofounder rating</span>
-                      <div className="flex-1" />
-                      <span className="text-xs text-slate-400">their idea rating</span>
-                      <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${ratingBg(m.theirRating)}`}>{m.theirRating}</span>
-                    </div>
-                  ))}
+                  {matches.map(m => {
+                    const isPerfect = perfectMatches.some(p => p.id === m.id);
+                    return (
+                      <div key={m.id} className={`flex items-center gap-2 text-sm ${isPerfect ? "bg-emerald-50 -mx-2 px-2 py-1 rounded-md" : ""}`}>
+                        <span className="font-medium text-slate-700 w-28">{m.name}</span>
+                        <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${tierBg(m.cfTier)}`}>{m.cfRating}</span>
+                        <span className="text-xs text-slate-400">your cofounder rating</span>
+                        {isPerfect && <span className="text-xs font-bold text-emerald-600 ml-1">\u2605</span>}
+                        <div className="flex-1" />
+                        <span className="text-xs text-slate-400">their idea rating</span>
+                        <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${ratingBg(m.theirRating)}`}>{m.theirRating}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -355,7 +373,7 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
   );
 }
 
-function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas }) {
+function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds }) {
   const [viewMode, setViewMode] = useState("cofounders");
   const [sortBy, setSortBy] = useState("tier");
   const [filterTier, setFilterTier] = useState("all");
@@ -376,17 +394,17 @@ function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ide
       <div className="flex gap-1 mb-4">
         <button onClick={() => setViewMode("cofounders")}
           className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${viewMode === "cofounders" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-          View by co-founder
+          Matches by co-founder
         </button>
         <button onClick={() => setViewMode("ideas")}
           className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${viewMode === "ideas" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-          View by idea
+          Matches by idea
         </button>
       </div>
 
       {viewMode === "ideas" ? (
         <IdeaAnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings}
-          allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} />
+          allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} />
       ) : (
         <>
           <div className="flex flex-wrap gap-3 mb-4 items-center">
@@ -718,7 +736,7 @@ export default function App() {
             <TierBoard tiers={ideaTiers} setTiers={setIdeaTiers} itemMap={ideaMap} label="Rank your idea preferences" ratings={ideaRatings} onRatingChange={(id, v) => setIdeaRatings(prev => ({...prev, [id]: v}))} bounds={ideaBounds} setBounds={setIdeaBounds} />
           </>
         )}
-        {tab === "analysis" && <AnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings} allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} />}
+        {tab === "analysis" && <AnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings} allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} />}
         {tab === "matrix" && (
           <div>
             <h2 className="text-lg font-semibold text-slate-700 mb-3">Full Idea Rating Matrix</h2>
