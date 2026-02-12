@@ -353,7 +353,7 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
                         <span className="font-medium text-slate-700 w-28">{m.name}</span>
                         <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${tierBg(m.cfTier)}`}>{m.cfRating}</span>
                         <span className="text-xs text-slate-400">your cofounder rating</span>
-                        {isPerfect && <span className="text-xs font-bold text-emerald-600 ml-1">\u2605</span>}
+                        {isPerfect && <span className="text-xs font-bold text-emerald-600 ml-1">★</span>}
                         <div className="flex-1" />
                         <span className="text-xs text-slate-400">their idea rating</span>
                         <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${ratingBg(m.theirRating)}`}>{m.theirRating}</span>
