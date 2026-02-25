@@ -129,7 +129,29 @@ function IdentitySelector({ onSelect }) {
   );
 }
 
-function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, bounds, setBounds }) {
+function PreferenceToggles({ id, preferences, onToggle }) {
+  const pref = preferences[id] || {};
+  const iTold = pref.iToldThem || false;
+  const theyTold = pref.theyToldMe || false;
+  const confirmed = iTold && theyTold;
+  return (
+    <div className="flex items-center gap-1 ml-1">
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle(id, "iToldThem", !iTold); }}
+        title={iTold ? "You told them you're interested (click to undo)" : "Mark: I told them I'm interested"}
+        className={`w-5 h-5 rounded text-[10px] font-bold transition-all flex items-center justify-center ${iTold ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-300 hover:bg-violet-100 hover:text-violet-400"}`}
+      >&#x2192;</button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle(id, "theyToldMe", !theyTold); }}
+        title={theyTold ? "They told you they're interested (click to undo)" : "Mark: They told me they're interested"}
+        className={`w-5 h-5 rounded text-[10px] font-bold transition-all flex items-center justify-center ${theyTold ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-300 hover:bg-violet-100 hover:text-violet-400"}`}
+      >&#x2190;</button>
+      {confirmed && <span className="text-[10px] text-violet-600 font-bold" title="Confirmed match - mutual interest expressed">&#x2714;</span>}
+    </div>
+  );
+}
+
+function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, bounds, setBounds, preferences, onPreferenceToggle }) {
   const dragRef = useRef(null);
   const [dropTarget, setDropTarget] = useState(null);
 
@@ -181,7 +203,15 @@ function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, b
   return (
     <div>
       <h2 className="text-lg font-semibold text-slate-700 mb-1">{label}</h2>
-      <p className="text-xs text-slate-400 mb-3">Click the numbers to change ratings. Items move between tiers automatically.</p>
+      <p className="text-xs text-slate-400 mb-1">Click the numbers to change ratings. Items move between tiers automatically.</p>
+      {preferences && (
+        <p className="text-xs text-slate-400 mb-3">
+          Use <span className="inline-flex items-center align-middle mx-0.5"><span className="w-4 h-4 rounded bg-violet-600 text-white text-[9px] font-bold inline-flex items-center justify-center">&#x2192;</span></span> if you told them you're interested
+          and <span className="inline-flex items-center align-middle mx-0.5"><span className="w-4 h-4 rounded bg-violet-600 text-white text-[9px] font-bold inline-flex items-center justify-center">&#x2190;</span></span> if they told you.
+          Both lit = confirmed match.
+        </p>
+      )}
+      {!preferences && <div className="mb-2" />}
       <TierSettings bounds={bounds} setBounds={setBounds} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {["tier1", "tier2", "tier3"].map(tierId => {
@@ -209,9 +239,12 @@ function TierBoard({ tiers, setTiers, itemMap, label, ratings, onRatingChange, b
                       <div draggable onDragStart={(e) => onDragStart(e, id)} onDragEnd={onDragEnd}
                         onDragEnter={(e) => onItemDragEnter(e, tierId, id)} onDragOver={onItemDragOver}
                         onDrop={(e) => onItemDrop(e, tierId, id)}
-                        className="flex items-center justify-between bg-white rounded-md px-3 py-2 shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow select-none">
+                        className={`flex items-center justify-between bg-white rounded-md px-3 py-2 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow select-none ${preferences && preferences[id]?.iToldThem && preferences[id]?.theyToldMe ? "border-violet-400 ring-1 ring-violet-200" : "border-slate-200"}`}>
                         <span className="text-sm font-medium text-slate-800 mr-2">{item.name}</span>
-                        <RatingControl value={currentRating} onChange={(v) => handleRatingChange(id, v)} />
+                        <div className="flex items-center gap-1">
+                          {preferences && onPreferenceToggle && <PreferenceToggles id={id} preferences={preferences} onToggle={onPreferenceToggle} />}
+                          <RatingControl value={currentRating} onChange={(v) => handleRatingChange(id, v)} />
+                        </div>
                       </div>
                     </div>
                   );
@@ -257,7 +290,7 @@ const LOCKED_IDEAS = {
   "Safe Start": { person: "Elisa", note: "Elisa is founding this idea. She is the only co-founder match." },
 };
 
-function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds }) {
+function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds, cfPreferences }) {
   const [filterMyRating, setFilterMyRating] = useState("5");
 
   const myRatings = {};
@@ -302,8 +335,9 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
     }
 
     const perfectMatches = locked ? [] : matches.filter(m => m.cfTier === 1 && m.theirRating >= t1IdeaMin);
+    const confirmedMatches = matches.filter(m => cfPreferences[m.id]?.iToldThem && cfPreferences[m.id]?.theyToldMe);
 
-    return { idea, myRating, matches, locked, perfectMatches };
+    return { idea, myRating, matches, locked, perfectMatches, confirmedMatches };
   })
   .filter(d => d.myRating >= parseInt(filterMyRating))
   .sort((a, b) => b.myRating - a.myRating);
@@ -321,7 +355,7 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
       </div>
 
       <div className="space-y-4">
-        {ideaData.map(({ idea, myRating, matches, locked, perfectMatches }) => (
+        {ideaData.map(({ idea, myRating, matches, locked, perfectMatches, confirmedMatches }) => (
           <div key={idea} className="border border-slate-200 rounded-lg overflow-hidden">
             <div className="px-4 py-3 bg-white border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -334,6 +368,11 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
                   {perfectMatches.length > 0 && (
                     <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md">
                       {perfectMatches.length} perfect match{perfectMatches.length !== 1 ? "es" : ""}
+                    </span>
+                  )}
+                  {confirmedMatches.length > 0 && (
+                    <span className="text-sm font-bold text-violet-700 bg-violet-50 px-2.5 py-0.5 rounded-md">
+                      {confirmedMatches.length} confirmed match{confirmedMatches.length !== 1 ? "es" : ""}
                     </span>
                   )}
                 </div>
@@ -349,12 +388,17 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
                 <div className="space-y-1.5">
                   {matches.map(m => {
                     const isPerfect = perfectMatches.some(p => p.id === m.id);
+                    const isConfirmed = confirmedMatches.some(c => c.id === m.id);
+                    const pref = cfPreferences[m.id] || {};
                     return (
-                      <div key={m.id} className={`flex items-center gap-2 text-sm ${isPerfect ? "bg-emerald-50 -mx-2 px-2 py-1 rounded-md" : ""}`}>
+                      <div key={m.id} className={`flex items-center gap-2 text-sm ${isConfirmed ? "bg-violet-50 -mx-2 px-2 py-1 rounded-md" : isPerfect ? "bg-emerald-50 -mx-2 px-2 py-1 rounded-md" : ""}`}>
                         <span className="font-medium text-slate-700 w-28">{m.name}</span>
                         <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${tierBg(m.cfTier)}`}>{m.cfRating}</span>
                         <span className="text-xs text-slate-400">your cofounder rating</span>
                         {isPerfect && <span className="text-xs font-bold text-emerald-600 ml-1">★</span>}
+                        {isConfirmed && <span className="text-xs font-bold text-violet-600 ml-1" title="Confirmed match">✓</span>}
+                        {!isConfirmed && pref.iToldThem && <span className="text-[10px] text-violet-400 ml-1" title="You told them">→</span>}
+                        {!isConfirmed && pref.theyToldMe && <span className="text-[10px] text-violet-400 ml-1" title="They told you">←</span>}
                         <div className="flex-1" />
                         <span className="text-xs text-slate-400">their idea rating</span>
                         <span className={`text-xs font-bold w-6 h-6 rounded flex items-center justify-center ${ratingBg(m.theirRating)}`}>{m.theirRating}</span>
@@ -374,12 +418,14 @@ function IdeaAnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings,
   );
 }
 
-function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds }) {
+function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders, ideas, ideaBounds, cfPreferences }) {
   const [viewMode, setViewMode] = useState("ideas");
   const [sortBy, setSortBy] = useState("tier");
   const [filterTier, setFilterTier] = useState("all");
   const analysisData = computeAnalysis(myName, cfTiers, cfRatings, ideaRatings, allRatings, ideaColumns, cofounders);
-  let filtered = filterTier === "all" ? analysisData : analysisData.filter(a => a.cfTier === parseInt(filterTier));
+  let filtered = filterTier === "all" ? analysisData :
+    filterTier === "confirmed" ? analysisData.filter(a => cfPreferences[a.id]?.iToldThem && cfPreferences[a.id]?.theyToldMe) :
+    analysisData.filter(a => a.cfTier === parseInt(filterTier));
   if (sortBy === "tier") filtered.sort((a, b) => a.cfTier - b.cfTier || b.rating - a.rating);
   else if (sortBy === "alignment") filtered.sort((a, b) => b.alignment - a.alignment);
   else if (sortBy === "conflicts") filtered.sort((a, b) => b.conflicts.length - a.conflicts.length || a.alignment - b.alignment);
@@ -405,7 +451,7 @@ function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ide
 
       {viewMode === "ideas" ? (
         <IdeaAnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings}
-          allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} />
+          allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} cfPreferences={cfPreferences} />
       ) : (
         <>
           <div className="flex flex-wrap gap-3 mb-4 items-center">
@@ -416,20 +462,42 @@ function AnalysisView({ myName, cfTiers, cfRatings, ideaRatings, allRatings, ide
             </select>
             <label className="text-sm text-slate-600 ml-2">Filter:</label>
             <select value={filterTier} onChange={e => setFilterTier(e.target.value)} className="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white">
-              <option value="all">All Tiers</option><option value="1">T1 only</option><option value="2">T2 only</option><option value="3">T3 only</option>
+              <option value="all">All Tiers</option><option value="confirmed">Confirmed matches</option><option value="1">T1 only</option><option value="2">T2 only</option><option value="3">T3 only</option>
             </select>
           </div>
+          {/* Confirmed matches summary */}
+          {(() => {
+            const confirmed = filtered.filter(p => cfPreferences[p.id]?.iToldThem && cfPreferences[p.id]?.theyToldMe);
+            if (confirmed.length === 0) return null;
+            return (
+              <div className="mb-4 p-3 bg-violet-50 border border-violet-200 rounded-lg text-sm text-violet-800">
+                <strong>Confirmed matches ({confirmed.length}):</strong>{" "}
+                {confirmed.map((c, i) => (
+                  <span key={c.id}>
+                    {i > 0 && ", "}
+                    <span className="font-semibold">{c.name}</span>
+                    <span className="text-violet-500 ml-1">({c.alignment}% aligned)</span>
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             <strong>Your top ideas:</strong> {topIdeas.length > 0 ? topIdeas.map(i => `${i.name} (${i.r})`).join(", ") : "None rated 6+"}
           </div>
           <div className="space-y-3">
             {filtered.map(person => {
               const alignColor = person.alignment >= 65 ? "text-emerald-700 bg-emerald-50" : person.alignment >= 45 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
-              const conflictSeverity = person.cfTier <= 2 && person.conflicts.length >= 3 ? "border-red-300 bg-red-50/30" : person.cfTier === 1 && person.conflicts.length >= 2 ? "border-orange-300 bg-orange-50/30" : "border-slate-200";
+              const pref = cfPreferences[person.id] || {};
+              const isConfirmed = pref.iToldThem && pref.theyToldMe;
+              const conflictSeverity = person.cfTier <= 2 && person.conflicts.length >= 3 ? "border-red-300 bg-red-50/30" : person.cfTier === 1 && person.conflicts.length >= 2 ? "border-orange-300 bg-orange-50/30" : isConfirmed ? "border-violet-300" : "border-slate-200";
               return (
-                <div key={person.id} className={`border rounded-lg overflow-hidden ${conflictSeverity}`}>
+                <div key={person.id} className={`border rounded-lg overflow-hidden ${conflictSeverity} ${isConfirmed ? "ring-1 ring-violet-200" : ""}`}>
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-100">
                     <span className="font-semibold text-slate-800">{person.name}</span>
+                    {isConfirmed && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Confirmed match</span>}
+                    {!isConfirmed && pref.iToldThem && <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500" title="You told them you're interested">You &#x2192;</span>}
+                    {!isConfirmed && pref.theyToldMe && <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500" title="They told you they're interested">&#x2192; You</span>}
                     {tierTag(person.cfTier)}
                     <span className="text-xs text-slate-500">{person.rating}/7</span>
                     <span className="ml-auto"><span className={`text-xs font-bold px-2 py-1 rounded-md ${alignColor}`}>{person.alignment}% aligned</span></span>
@@ -546,6 +614,7 @@ export default function App() {
   const [ideaTiers, setIdeaTiers] = useState(null);
   const [cfRatings, setCfRatings] = useState({});
   const [ideaRatings, setIdeaRatings] = useState({});
+  const [cfPreferences, setCfPreferences] = useState({});
   const [cfBounds, setCfBounds] = useState(DEFAULT_TIER_BOUNDS);
   const [ideaBounds, setIdeaBounds] = useState(DEFAULT_TIER_BOUNDS);
   const [cofounders, setCofounders] = useState([]);
@@ -593,6 +662,7 @@ export default function App() {
         setIdeas(ideaList);
         setCfRatings(local?.cfRatings || {});
         setIdeaRatings(local?.ideaRatings || {});
+        setCfPreferences(local?.cfPreferences || {});
         if (local?.cfTiers) {
           const allIds = new Set(cfs.map(c => c.id));
           const inTiers = new Set([...(local.cfTiers.tier1||[]), ...(local.cfTiers.tier2||[]), ...(local.cfTiers.tier3||[])]);
@@ -654,11 +724,11 @@ export default function App() {
     setSaveStatus("saving");
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
-      saveLocal(myName, { cfTiers, ideaTiers, cfRatings, ideaRatings, cfBounds, ideaBounds });
+      saveLocal(myName, { cfTiers, ideaTiers, cfRatings, ideaRatings, cfPreferences, cfBounds, ideaBounds });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus(""), 2000);
     }, 500);
-  }, [cfTiers, ideaTiers, cfRatings, ideaRatings, cfBounds, ideaBounds, loading, myName]);
+  }, [cfTiers, ideaTiers, cfRatings, ideaRatings, cfPreferences, cfBounds, ideaBounds, loading, myName]);
 
   const refreshFromSheet = async () => {
     setSheetStatus("Refreshing...");
@@ -669,7 +739,7 @@ export default function App() {
   };
 
   const handleSelectIdentity = (name) => { saveIdentity(name); setMyName(name); };
-  const handleChangeIdentity = () => { setMyName(null); setCfTiers(null); setIdeaTiers(null); setCfRatings({}); setIdeaRatings({}); };
+  const handleChangeIdentity = () => { setMyName(null); setCfTiers(null); setIdeaTiers(null); setCfRatings({}); setIdeaRatings({}); setCfPreferences({}); };
 
   if (!myName) return <IdentitySelector onSelect={handleSelectIdentity} />;
   if (loading) return <div className="flex items-center justify-center h-screen bg-slate-50"><div className="text-slate-500">Loading...</div></div>;
@@ -728,7 +798,7 @@ export default function App() {
         </div>
       </div>
       <div className="max-w-5xl mx-auto px-4 py-5">
-        {tab === "cofounders" && <TierBoard tiers={cfTiers} setTiers={setCfTiers} itemMap={cfMap} label="Rank your co-founder preferences" ratings={cfRatings} onRatingChange={(id, v) => setCfRatings(prev => ({...prev, [id]: v}))} bounds={cfBounds} setBounds={setCfBounds} />}
+        {tab === "cofounders" && <TierBoard tiers={cfTiers} setTiers={setCfTiers} itemMap={cfMap} label="Rank your co-founder preferences" ratings={cfRatings} onRatingChange={(id, v) => setCfRatings(prev => ({...prev, [id]: v}))} bounds={cfBounds} setBounds={setCfBounds} preferences={cfPreferences} onPreferenceToggle={(id, field, value) => setCfPreferences(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }))} />}
         {tab === "ideas" && (
           <>
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
@@ -737,7 +807,7 @@ export default function App() {
             <TierBoard tiers={ideaTiers} setTiers={setIdeaTiers} itemMap={ideaMap} label="Rank your idea preferences" ratings={ideaRatings} onRatingChange={(id, v) => setIdeaRatings(prev => ({...prev, [id]: v}))} bounds={ideaBounds} setBounds={setIdeaBounds} />
           </>
         )}
-        {tab === "analysis" && <AnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings} allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} />}
+        {tab === "analysis" && <AnalysisView myName={myName} cfTiers={cfTiers} cfRatings={cfRatings} ideaRatings={ideaRatings} allRatings={allRatings} ideaColumns={ideaColumns} cofounders={cofounders} ideas={ideas} ideaBounds={ideaBounds} cfPreferences={cfPreferences} />}
         {tab === "matrix" && (
           <div>
             <h2 className="text-lg font-semibold text-slate-700 mb-3">Full Idea Rating Matrix</h2>
